@@ -71,7 +71,6 @@ data Info = Info
   , infoReqMultiPart :: Bool
   , infoReqHeaders :: HMS.HashMap (CI.CI T.Text) HeaderInfo
   , infoRespJSON :: Maybe T.Text
-  , infoRespRaw :: Bool
   , infoMethod :: Maybe T.Text
   } deriving (Eq, Show)
 
@@ -88,7 +87,6 @@ generateTypeScript _ = fmap (\(paths, types) -> (paths, nubOrd types)) $ typeScr
   , infoReqMultiPart = False
   , infoReqHeaders = mempty
   , infoRespJSON = Nothing
-  , infoRespRaw = False
   , infoMethod = Nothing
   }
 
@@ -98,13 +96,13 @@ class TypeScriptRoute a where
   typeScriptRoute _ = typeScriptRoute (Proxy @(Rep a ()))
 
 instance TypeScriptRoute (Raw a) where
-  typeScriptRoute _ _info = return mempty
+  typeScriptRoute _ info = return (pure (PathsEnd info), mempty)
 
 instance (TypeScriptRoute a) => TypeScriptRoute (End a) where
   typeScriptRoute _ = typeScriptRoute (Proxy @a)
 
 instance TypeScriptRoute (RawResponse a) where
-  typeScriptRoute _ info = return (pure (PathsEnd info{infoRespRaw = True}), mempty)
+  typeScriptRoute _ info = return (pure (PathsEnd info), mempty)
 
 instance (Aeson.TypeScript a) => TypeScriptRoute (JSON a) where
   typeScriptRoute _ info = return
@@ -273,15 +271,14 @@ typeScript p additionalTypes name = case generateTypeScript p of
 
     pathToField dict0 = \case
       PathsCapture paths -> mergeDicts dict0 (emptyDict { tsdCapture = Just (go paths) })
-      PathsEnd info -> if infoRespRaw info
-        then dict0
-        else let
+      PathsEnd info ->
+        let
           req = case (infoReqMultiPart info, infoReqJSON info) of
             (True, Nothing) -> TSRMultipart
             (False, Just j) -> TSRJson j
             (True, Just{}) -> error "Got both multipart and json req body"
             (False, Nothing) -> TSRNoBody
-          in mergeDicts dict0 emptyDict
+        in mergeDicts dict0 emptyDict
             { tsdSend = Just TypeScriptSend
                 { tssMethod = fromMaybe "GET" (infoMethod info)
                 , tssReq = req
