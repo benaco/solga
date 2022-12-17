@@ -309,10 +309,10 @@ typeScript p additionalTypes name = case generateTypeScript p of
                   TSRMultipart -> [ "req: FormData" ]
                   TSRNoBody -> []
               ]
-            in [ "\"s\": (" <> args <> ") => Promise<" <> tssResp <> ">" ]
+            in [ "\"s\": (" <> args <> ") => Promise<" <> tssResp <> ">, " ] -- TypeScript allows trailing commas at list ends
       , case tsdCapture dict of
           Nothing -> []
-          Just ty -> ["\"p\": (_: string) => " <> renderDictType ty <> ", "]
+          Just ty -> ["\"p\": (_: string) => " <> renderDictType ty <> ", "] -- TypeScript allows trailing commas at list ends
       , if HMS.size (tsdSegments dict) > 0 then ["\"r\": " <> renderRoutesTypes (tsdSegments dict)] else []
       , ["}"]
       ]
@@ -321,7 +321,7 @@ typeScript p additionalTypes name = case generateTypeScript p of
       [ ["{"]
       , do
           (seg, ty) <- HMS.toList segs
-          return (T.pack (show seg) <> ": " <> renderDictType ty <> ", ")
+          return (T.pack (show seg) <> ": " <> renderDictType ty <> ", ") -- TypeScript allows trailing commas at list ends
       , ["}"]
       ]
 
@@ -373,6 +373,6 @@ typeScript p additionalTypes name = case generateTypeScript p of
       [ ["{"]
       , do
           (seg, ty) <- HMS.toList newSegs
-          return (T.pack (show seg) <> ": " <> renderDictExpr (TSSConst seg : segs) ty <> ", ")
+          return (T.pack (show seg) <> ": " <> renderDictExpr (TSSConst seg : segs) ty <> ", ") -- TypeScript allows trailing commas at list ends
       , ["}"]
       ]
