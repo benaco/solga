@@ -32,7 +32,6 @@ import Data.Proxy
 import GHC.Generics
 import qualified Data.DList as DL
 import Data.List (foldl')
-import Data.Monoid ((<>))
 import Control.Monad (guard)
 import qualified Data.CaseInsensitive as CI
 import Data.Containers.ListUtils (nubOrd)
@@ -214,13 +213,17 @@ data TypeScriptSeg
 
 
 sendFunctions :: T.Text
-sendFunctions =
-  " export interface SendFunctions { \
-  \   baseUrl: string; \
-  \   send<A>(url: string, method: string, headers: {[k: string]: string | undefined}): Promise<A>, \
-  \   sendJson<A, B>(url: string, method: string, headers: {[k: string]: string | undefined}, req: A): Promise<B>, \
-  \   sendForm<A>(url: string, method: string, headers: {[k: string]: string | undefined}, req: FormData): Promise<A> \
-  \ }"
+sendFunctions = T.unlines
+  [ "export interface SendFunctions {"
+  , "  baseUrl: string;"
+  , "  send<A>(url: string, method: string, headers: {[k: string]: string | undefined}): Promise<A>,"
+  , "  sendJson<A, B>(url: string, method: string, headers: {[k: string]: string | undefined}, req: A): Promise<B>,"
+  , "  sendForm<A>(url: string, method: string, headers: {[k: string]: string | undefined}, req: FormData): Promise<A>"
+  , "}"
+  ]
+
+_INDENT_SPACES :: Int
+_INDENT_SPACES = 2
 
 typeScript ::
      (TypeScriptRoute a)
@@ -242,7 +245,7 @@ typeScript p additionalTypes name = case generateTypeScript p of
       , ""
       , sendFunctions
       , ""
-      , "export const " <> name <> ": " <> renderDictType dict <> " = " <> renderDictExpr [] dict <> ";"
+      , "export const " <> name <> ": " <> renderDictType 0 dict <> " = " <> renderDictExpr 0 [] dict <> ";"
       ]
   where
     emptyDict = TypeScriptDict{ tsdSegments = mempty, tsdCapture = Nothing, tsdSend = Nothing }
@@ -291,8 +294,9 @@ typeScript p additionalTypes name = case generateTypeScript p of
         in foldl' (\dict seg -> mergeDicts dict emptyDict{ tsdSegments = HMS.singleton seg pathsDict }) dict0 segs
       PathsNothing -> dict0
 
-    renderDictType dict = T.concat $ concat
-      [ ["{"]
+    renderDictType nestingLevel dict = T.concat $ concat
+      [ ["{\n"]
+      , replicate (_INDENT_SPACES * (nestingLevel + 1)) " "
       , case tsdSend dict of
           Nothing -> []
           Just TypeScriptSend{..} -> let
@@ -309,21 +313,27 @@ typeScript p additionalTypes name = case generateTypeScript p of
             in [ "\"s\": (" <> args <> ") => Promise<" <> tssResp <> ">, " ] -- TypeScript allows trailing commas at list ends
       , case tsdCapture dict of
           Nothing -> []
-          Just ty -> ["\"p\": (_: string) => " <> renderDictType ty <> ", "] -- TypeScript allows trailing commas at list ends
-      , if HMS.size (tsdSegments dict) > 0 then ["\"r\": " <> renderRoutesTypes (tsdSegments dict)] else []
+          Just ty -> ["\"p\": (_: string) => " <> renderDictType (nestingLevel + 1) ty <> ", "] -- TypeScript allows trailing commas at list ends
+      , if HMS.size (tsdSegments dict) > 0 then ["\"r\": " <> renderRoutesTypes (nestingLevel + 1) (tsdSegments dict)] else []
+      , ["\n"]
+      , replicate (_INDENT_SPACES * nestingLevel) " "
       , ["}"]
       ]
 
-    renderRoutesTypes segs = T.concat $ concat
-      [ ["{"]
+    renderRoutesTypes nestingLevel segs = T.concat $ concat
+      [ ["{\n"]
+      , replicate (_INDENT_SPACES * (nestingLevel + 1)) " "
       , do
           (seg, ty) <- HMS.toList segs
-          return (T.pack (show seg) <> ": " <> renderDictType ty <> ", ") -- TypeScript allows trailing commas at list ends
+          return (T.pack (show seg) <> ": " <> renderDictType (nestingLevel + 1) ty <> ", ") -- TypeScript allows trailing commas at list ends
+      , ["\n"]
+      , replicate (_INDENT_SPACES * nestingLevel) " "
       , ["}"]
       ]
 
-    renderDictExpr segs dict = T.concat $ concat
-      [ ["{"]
+    renderDictExpr nestingLevel segs dict = T.concat $ concat
+      [ ["{\n"]
+      , replicate (_INDENT_SPACES * (nestingLevel + 1)) " "
       , case tsdSend dict of
           Nothing -> []
           Just TypeScriptSend{..} -> let
@@ -361,15 +371,20 @@ typeScript p additionalTypes name = case generateTypeScript p of
           Nothing -> []
           Just ty -> let
             v = "param" <> T.pack (show (length segs))
-            in ["\"p\": (" <> v <> ": string): " <> renderDictType ty <> " => { return " <> renderDictExpr (TSSVar v : segs) ty <> "; }, "]
-      , if HMS.size (tsdSegments dict) > 0 then ["\"r\": " <> renderRoutesExprs segs (tsdSegments dict)] else []
+            in ["\"p\": (" <> v <> ": string): " <> renderDictType (nestingLevel + 1) ty <> " => { return " <> renderDictExpr (nestingLevel + 1) (TSSVar v : segs) ty <> "; }, "]
+      , if HMS.size (tsdSegments dict) > 0 then ["\"r\": " <> renderRoutesExprs (nestingLevel + 1) segs (tsdSegments dict)] else []
+      , ["\n"]
+      , replicate (_INDENT_SPACES * nestingLevel) " "
       , ["}"]
       ]
 
-    renderRoutesExprs segs newSegs = T.concat $ concat
-      [ ["{"]
+    renderRoutesExprs nestingLevel segs newSegs = T.concat $ concat
+      [ ["{\n"]
+      , replicate (_INDENT_SPACES * (nestingLevel + 1)) " "
       , do
           (seg, ty) <- HMS.toList newSegs
-          return (T.pack (show seg) <> ": " <> renderDictExpr (TSSConst seg : segs) ty <> ", ") -- TypeScript allows trailing commas at list ends
+          return (T.pack (show seg) <> ": " <> renderDictExpr (nestingLevel + 1) (TSSConst seg : segs) ty <> ", ") -- TypeScript allows trailing commas at list ends
+      , ["\n"]
+      , replicate (_INDENT_SPACES * nestingLevel) " "
       , ["}"]
       ]

@@ -41,7 +41,6 @@ import qualified Data.ByteString.Builder as Builder
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as Char8
 import qualified Data.Map.Strict as Map
-import           Data.Monoid
 import           Data.Proxy
 import qualified Data.Text as Text
 import           Data.Text.Encoding
