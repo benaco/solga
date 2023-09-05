@@ -87,30 +87,6 @@ spec = with (return $ serve testAPI) $ do
       resp <- get path
       liftIO $ decode (simpleBody resp) `shouldBe` Just (String seg)
 
-instance Arbitrary Value where
-  arbitrary = sized arbJSON
-   where
-    arbJSON :: Int -> Gen Value
-    arbJSON n
-      | n == 0 = oneof leaves
-      | otherwise = oneof (leaves ++ branches (arbJSON (n `div` 4)))
-    leaves =
-      [ String <$> arbitrary
-      , Number <$> arbitrary
-      , Bool <$> arbitrary
-      , pure Null
-      ]
-    branches child =
-      [ do
-          values <- scale (`div` 4) (listOf child)
-          entries <- for values $ \val -> do
-            key <- arbitrary
-            return ( key, val )
-          return $ Object $ HMS.fromList entries
-      , (Array . V.fromList) <$> scale (`div` 4) (listOf child)
-      ]
-  shrink = genericShrink
-
 instance (Eq key, Hashable key, Arbitrary key, Arbitrary value) => Arbitrary (HMS.HashMap key value) where
   arbitrary = HMS.fromList <$> arbitrary
   shrink = map HMS.fromList . shrink . HMS.toList
