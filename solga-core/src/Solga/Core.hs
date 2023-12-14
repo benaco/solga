@@ -124,8 +124,8 @@ newtype ReqBodyJSON a next = ReqBodyJSON { reqBodyJSONNext :: a -> next }
 -- | Produce a response with `IO`.
 newtype WithIO next = WithIO { withIONext :: IO next }
 
-type MultiPartParam = (ByteString, ByteString)
-type MultiPartFile = (ByteString, MultiPartFileInfo)
+type MultiPartParam = (ByteString, ByteString) -- ^ (param name, param value)
+type MultiPartFile = (ByteString, MultiPartFileInfo) -- ^ (param name, file info)
 
 data MultiPartFileInfo = MultiPartFileInfo
   { mpfiName :: ByteString
